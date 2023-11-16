@@ -82,6 +82,12 @@ def get_metrics(g):
     metrics[pred] = obj_list
   return metrics
 
+def get_urls(g):
+  voc = []
+  for sub, pred, obj in g:
+    voc.append(str(sub))
+  return voc
+
 def main():
   mach_read_voc = []
   non_prop_voc = []
@@ -93,14 +99,21 @@ def main():
   g = Graph()
   g.parse(args.file, format="application/rdf+xml")
 
-  mach_read_voc = load_edp_vocabulary(MACH_READ_FILE)
-  non_prop_voc = load_edp_vocabulary(NON_PROP_FILE)
-
-  weight = 0
-  weight = edp_validator(args.file, weight)
+  try:
+    mach_read_voc = load_edp_vocabulary(MACH_READ_FILE)
+    non_prop_voc = load_edp_vocabulary(NON_PROP_FILE)
+  except:
+    mach_read_voc = '-1'
+    non_prop_voc = '-1'
+  try:
+    weight = edp_validator(args.file, weight)
+  except:
+    weight = 0
+  
   print('   Current weight =',weight)
 
   metrics = get_metrics(g)
+  urls = get_urls(g)
   f_res = {}
   f_res = f_res.fromkeys(['result', 'url', 'weight'])
   m_res = {}
@@ -125,7 +138,7 @@ def main():
     elif met == "dct:format":
       f_res = mqa.format(objs, mach_read_voc, non_prop_voc, weight)
       weight = f_res['weight']
-    elif met == "dct:license":
+    if met == "dct:license":
       weight = mqa.license(objs, weight)
     elif met == "dcat:contactPoint":
       weight = mqa.contactpoint(weight)

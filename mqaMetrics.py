@@ -6,6 +6,7 @@ Developer: Johnny Choque (jchoque@tlmat.unican.es)
 '''
 import requests
 from rdflib import Graph, URIRef
+import json
 
 def accessURL(urls, weight):
   checked = True
@@ -81,11 +82,14 @@ def format(urls, mach_read_voc, non_prop_voc, weight):
     else:
       non_prop_checked = non_prop_checked and False
     g = Graph()
-    g.parse(url, format="application/rdf+xml")
-    if (url, None, None) in g:
-      found_checked = found_checked and True
-    else:
-      found_checked = found_checked and False
+    try:
+      g.parse(url, format="application/rdf+xml")
+      if (url, None, None) in g:
+        found_checked = found_checked and True
+      else:
+        found_checked = found_checked and False
+    except:
+        found_checked = found_checked and False
   if mach_read_checked:
     print('   Result: OK. The property is machine-readable. Weight assigned 20')
     weight = weight + 20
@@ -108,17 +112,21 @@ def license(urls, weight):
   print('   Result: OK. The property is set. Weight assigned 20')
   for url in urls:
     g = Graph()
-    g.parse(url, format="application/rdf+xml")
-    if (url, None, None) in g:
-      checked = checked and True
-    else:
-      checked = checked and False
+    try:
+      g.parse(url, format="application/rdf+xml")
+      if (url, None, None) in g:
+        checked = checked and True
+      else:
+        checked = checked and False
+    except:
+        checked = checked and False
   if checked:
     weight = weight + 10
     print('   Result: OK. The property provides the correct license information. Weight assigned 10')
   else:
     print('   Result: ERROR. The license is incorrect -',str(url))
   return weight
+
 
 def contactpoint(weight):
   weight = weight + 20
@@ -130,10 +138,13 @@ def mediatype(urls, weight):
   weight = weight + 10
   print('   Result: OK. The property is set. Weight assigned 10')
   for url in urls:
-    res = requests.get(str(url))
-    if res.status_code != 404:
-      checked = checked and True
-    else:
+    try:
+      res = requests.get(str(url))
+      if res.status_code != 404:
+        checked = checked and True
+      else:
+        checked = checked and False
+    except:
       checked = checked and False
   if checked:
     result = True
@@ -157,10 +168,13 @@ def accessrights(urls, weight):
     if type(url) != type(uri):
       isURL = False
       continue
-    g.parse(url, format="application/rdf+xml")
-    if (url, None, None) in g:
-      checked = checked and True
-    else:
+    try:
+      g.parse(url, format="application/rdf+xml")
+      if (url, None, None) in g:
+        checked = checked and True
+      else:
+        checked = checked and False
+    except:
       checked = checked and False
   if isURL:
     if checked:
