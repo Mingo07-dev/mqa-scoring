@@ -10,7 +10,15 @@ import json
 from rdflib import Graph
 import argparse
 import mqaMetrics as mqa
+from fastapi import FastAPI, File, UploadFile, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 import os
+import uvicorn
+from pydantic import BaseModel
+import logging 
+from typing import List
+import xml.etree.ElementTree as ET
 
 URL_EDP = 'https://data.europa.eu/api/mqa/shacl/validation/report'
 HEADERS = {'content-type': 'application/rdf+xml'}
@@ -172,5 +180,75 @@ def main():
   print('\n')
   print('Overall MQA scoring:', str(weight))
 
+
+app = FastAPI(title="BeOpen mqa-scoring")
+appPort = os.getenv("PORT", 8000)
+logger = logging.getLogger(__name__)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Base model
+class Options(BaseModel):
+    xml: str
+
+
+@app.post("/mqa")
+async def useCaseConfigurator(options: Options):
+# async def useCaseConfigurator():
+    try:
+        configuration_inputs = options
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Inputs not valid")
+        # settare gli input
+        # eseguire getInput()
+        # eseguire close()
+        # restituire il file
+    try:
+        logging.debug(
+            "Questo è un messaggio informativo, hai superato le prime eccezioni"
+        )
+
+        global xml
+        xml = configuration_inputs.xml
+        print(configuration_inputs.xml)
+
+        # main()
+        # output_file = open("output.txt", "r") 
+        # output_file.close()
+        output_file = ET.ElementTree(ET.fromstring(xml))   
+
+        # Restituisci il file come risposta
+        return FileResponse(
+            output_file.name,
+            headers={
+                "Content-Disposition": "attachment; filename=output.txt"
+            },
+            media_type="text/plain"  # Tipo di media per i file .txt
+        )
+        """
+        return {
+            'deviceId':options.deviceId,
+            'language':options.language,
+            'userId':options.userId,
+            'file':file.filename,
+            'emotions': exportdat.to_dict(orient="records")
+        }
+        """
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error" + str(e))
+
+
+# if __name__ == "__main__":
+#   main()
+
 if __name__ == "__main__":
-  main()
+    # uvicorn.run(app, host='0.0.0.0', port=appPort)
+    uvicorn.run(app, host='localhost', port=appPort)

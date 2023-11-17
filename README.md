@@ -8,9 +8,17 @@ Mqa-scoring is a tool that calculates the score a metadata obtains according to 
 
 `pip install -r requirements.txt`
 
+## Docker installation
+
+`docker compose up -d`
+
 ## Usage
 
 `python mqa-scoring.py -h`
+
+## Usage logging in file
+
+`python mqa-scoring.py -f '.\input\file\path' > output.txt`
 
 
 usage: mqa-scoring.py [-h] -f FILE
