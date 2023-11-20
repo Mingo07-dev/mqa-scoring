@@ -96,17 +96,16 @@ def get_urls(g):
     voc.append(str(sub))
   return voc
 
-def main():
+def main(file):
   mach_read_voc = []
   non_prop_voc = []
 
-  parser = argparse.ArgumentParser(description='Calculates the score obtained by a metadata according to the MQA methodology specified by data.europa.eu')
-  parser.add_argument('-f', '--file', type=str, required=True, help='RDF file to be validated')
-  args = parser.parse_args()
+  # parser = argparse.ArgumentParser(description='Calculates the score obtained by a metadata according to the MQA methodology specified by data.europa.eu')
+  # parser.add_argument('-f', '--file', type=str, required=True, help='RDF file to be validated')
+  # args = parser.parse_args()
 
   g = Graph()
-  g.parse(args.file, format="application/rdf+xml")
-
+  g.parse(data = file)
   try:
     mach_read_voc = load_edp_vocabulary(MACH_READ_FILE)
     non_prop_voc = load_edp_vocabulary(NON_PROP_FILE)
@@ -114,7 +113,7 @@ def main():
     mach_read_voc = '-1'
     non_prop_voc = '-1'
   try:
-    weight = edp_validator(args.file, weight)
+    weight = edp_validator(file, weight)
   except:
     weight = 0
   
@@ -179,6 +178,15 @@ def main():
 
   print('\n')
   print('Overall MQA scoring:', str(weight))
+  return weight
+  
+        # return {
+        #     'deviceId':options.deviceId,
+        #     'language':options.language,
+        #     'userId':options.userId,
+        #     'file':file.filename,
+        #     'emotions': exportdat.to_dict(orient="records")
+        # }
 
 
 app = FastAPI(title="BeOpen mqa-scoring")
@@ -215,32 +223,12 @@ async def useCaseConfigurator(options: Options):
             "Questo è un messaggio informativo, hai superato le prime eccezioni"
         )
 
-        global xml
-        xml = configuration_inputs.xml
-        print(configuration_inputs.xml)
+        if configuration_inputs.xml != None:
+          global xml
+          xml = configuration_inputs.xml
 
-        # main()
-        # output_file = open("output.txt", "r") 
-        # output_file.close()
-        output_file = ET.ElementTree(ET.fromstring(xml))   
 
-        # Restituisci il file come risposta
-        return FileResponse(
-            output_file.name,
-            headers={
-                "Content-Disposition": "attachment; filename=output.txt"
-            },
-            media_type="text/plain"  # Tipo di media per i file .txt
-        )
-        """
-        return {
-            'deviceId':options.deviceId,
-            'language':options.language,
-            'userId':options.userId,
-            'file':file.filename,
-            'emotions': exportdat.to_dict(orient="records")
-        }
-        """
+        return main(xml)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error" + str(e))
