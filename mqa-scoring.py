@@ -104,6 +104,10 @@ def main(file):
   # parser.add_argument('-f', '--file', type=str, required=True, help='RDF file to be validated')
   # args = parser.parse_args()
 
+  class Object(object):
+    pass
+  response = Object()
+
   g = Graph()
   g.parse(data = file)
   try:
@@ -114,79 +118,113 @@ def main(file):
     non_prop_voc = '-1'
   try:
     weight = edp_validator(file, weight)
+    response.shacl_validation = weight
   except:
     weight = 0
+    response.shacl_validation = 0
   
   print('   Current weight =',weight)
 
   metrics = get_metrics(g)
   urls = get_urls(g)
   f_res = {}
-  f_res = f_res.fromkeys(['result', 'url', 'weight'])
+  f_res = f_res.fromkeys(['result', 'url', 'response'])
   m_res = {}
-  m_res = m_res.fromkeys(['result', 'weight'])
+  m_res = m_res.fromkeys(['result', 'response'])
 
   for pred in metrics.keys():
     met = str_metric(pred, g)
     objs = metrics[pred]
     print('*',met)
     if met == "dcat:accessURL":
-      weight = mqa.accessURL(objs, weight)
+      res = mqa.accessURL(objs, response)
+      response = res
+      weight = weight + res.accessURL
     elif met == "dcat:downloadURL":
-      weight = mqa.downloadURL(objs, weight)
+      res = mqa.downloadURL(objs, response)
+      response = res
+      weight = weight + res.downloadURL
     elif met == "dcat:keyword":
-      weight = mqa.keyword(weight)
+      res = mqa.keyword(response)
+      response = res
+      weight = weight + res.keyword
     elif met == "dcat:theme":
-      weight = mqa.theme(weight)
+      res = mqa.theme(response)
+      response = res
+      weight = weight + res.theme
     elif met == "dct:spatial":
-      weight = mqa.spatial(weight)
+      res = mqa.spatial(response)
+      response = res
+      weight = weight + res.spatial
     elif met == "dct:temporal":
-      weight = mqa.temporal(weight)
+      res = mqa.temporal(response)
+      response = res
+      weight = weight + res.temporal
     elif met == "dct:format":
-      f_res = mqa.format(objs, mach_read_voc, non_prop_voc, weight)
-      weight = f_res['weight']
+      f_res = mqa.format(objs, mach_read_voc, non_prop_voc, response)
+      res = f_res['response']
+      response = res
+      toAdd = res.format
+      if hasattr(res, "formatMachineReadable"):
+        toAdd += res.formatMachineReadable
+      if hasattr(res, "formatNonProprietary"):
+        toAdd += res.formatNonProprietary
+      weight = weight + toAdd
     if met == "dct:license":
-      weight = mqa.license(objs, weight)
+      res = mqa.license(objs, response)
+      response = res
+      weight = weight + res.license
     elif met == "dcat:contactPoint":
-      weight = mqa.contactpoint(weight)
+      res = mqa.contactpoint(response)
+      response = res
+      weight = weight + res.contactPoint
     elif met == "dcat:mediaType":
-      m_res = mqa.mediatype(objs, weight)
-      weight = m_res['weight']
+      m_res = mqa.mediatype(objs, response)
+      res = m_res['response']
+      response = res
+      weight = weight + res.mediaType
     elif met == "dct:publisher":
-      weight = mqa.publisher(weight)
+      res = mqa.publisher(response)
+      response = res
+      weight = weight + res.publisher
     elif met == "dct:accessRights":
-      weight = mqa.accessrights(objs, weight)
+      res = mqa.accessrights(objs, response)
+      response = res
+      weight = weight + res.accessRights
     elif met == "dct:issued":
-      weight = mqa.issued(weight)
+      res = mqa.issued(response)
+      response = res
+      weight = weight + res.issued
     elif met == "dct:modified":
-      weight = mqa.modified(weight)
+      res = mqa.modified(response)
+      response = res
+      weight = weight + res.modified
     elif met == "dct:rights":
-      weight = mqa.rights(weight)
+      res = mqa.rights(response)
+      response = res
+      weight = weight + res.rights
     elif met == "dcat:byteSize":
-      weight = mqa.byteSize(weight)
+      res = mqa.byteSize(response)
+      response = res
+      weight = weight + res.byteSize
     else:
       otherCases(pred, objs, g)
     print('   Current weight =',weight)
 
   print('* dct:format & dcat:mediaType')
   if f_res['result'] and m_res['result']:
+    response.dctFormat_dcatMediaType = 10
     weight = weight + 10
     print('   Result: OK. The properties belong to a controlled vocabulary. Weight assigned 10')
     print('   Current weight=',weight)
   else:
+    response.dctFormat_dcatMediaType = 0
     print('   Result: WARN. The properties do not belong to a controlled vocabulary')
 
   print('\n')
   print('Overall MQA scoring:', str(weight))
-  return weight
-  
-        # return {
-        #     'deviceId':options.deviceId,
-        #     'language':options.language,
-        #     'userId':options.userId,
-        #     'file':file.filename,
-        #     'emotions': exportdat.to_dict(orient="records")
-        # }
+  response.overall = weight
+  return response
 
 
 app = FastAPI(title="BeOpen mqa-scoring")

@@ -8,7 +8,7 @@ import requests
 from rdflib import Graph, URIRef
 import json
 
-def accessURL(urls, weight):
+def accessURL(urls, response):
   checked = True
   for url in urls:
     try:
@@ -20,16 +20,16 @@ def accessURL(urls, weight):
     except:
       checked = checked and False
   if checked:
-    weight = weight + 50
+    response.accessURL = 50
     print('   Result: OK. Weight assigned 50')
   else:
     print('   Result: ERROR - Responded status code of HTTP HEAD request is not in the 200 or 300 range')
-  return weight
+  return response
 
-def downloadURL(urls, weight):
+def downloadURL(urls, response):
+  weight = 20
   checked = True
   print('   Result: OK. The property is set. Weight assigned 20')
-  weight = weight + 20
   for url in urls:
     try:
       res = requests.get(url)
@@ -40,38 +40,39 @@ def downloadURL(urls, weight):
     except:
       checked = checked and False
   if checked:
-    weight = weight + 30
+    weight += 30
     print('   Result: OK. Weight assigned 30')
   else:
     print('   Result: ERROR - Responded status code of HTTP HEAD request is not in the 200 or 300 range')
-  return weight
+  response.downloadURL = weight
+  return response
 
-def keyword(weight):
-  weight = weight + 30
+def keyword(response):
+  response.keyword = 30
   print('   Result: OK. The property is set. Weight assigned 30')
-  return weight
+  return response
 
-def theme(weight):
-  weight = weight + 30
+def theme(response):
+  response.theme = 30
   print('   Result: OK. The property is set. Weight assigned 30')
-  return weight
+  return response
 
-def spatial(weight):
-  weight = weight + 20
+def spatial(response):
+  response.spatial = 20
   print('   Result: OK. The property is set. Weight assigned 20')
-  return weight
+  return response
 
-def temporal(weight):
-  weight = weight + 20
+def temporal(response):
+  response.temporal = 20
   print('   Result: OK. The property is set. Weight assigned 20')
-  return weight
+  return response
 
-def format(urls, mach_read_voc, non_prop_voc, weight):
+def format(urls, mach_read_voc, non_prop_voc, response):
   mach_read_checked = True
   non_prop_checked = True
   found_checked = True
   print('   Result: OK. The property is set. Weight assigned 20')
-  weight = weight + 20
+  response.format = 20
   for url in urls:
     if str(url) in mach_read_voc:
       mach_read_checked = mach_read_checked and True
@@ -92,23 +93,23 @@ def format(urls, mach_read_voc, non_prop_voc, weight):
         found_checked = found_checked and False
   if mach_read_checked:
     print('   Result: OK. The property is machine-readable. Weight assigned 20')
-    weight = weight + 20
+    response.formatMachineReadable = 20
   else:
     print('   Result: ERROR. The property is not machine-readable')
   if non_prop_checked:
     print('   Result: OK. The property is non-propietary. Weight assigned 20')
-    weight = weight + 20
+    response.formatNonProprietary = 20
   else:
     print('   Result: ERROR. The property is not non-propietary')
   if found_checked:
     result = True
   else:
     result = False
-  return {'result': result, 'url':str(url), 'weight': weight}
+  return {'result': result, 'url':str(url), 'response': response}
 
-def license(urls, weight):
+def license(urls, response):
   checked = True
-  weight = weight + 20
+  weight = 20
   print('   Result: OK. The property is set. Weight assigned 20')
   for url in urls:
     g = Graph()
@@ -121,21 +122,22 @@ def license(urls, weight):
     except:
         checked = checked and False
   if checked:
-    weight = weight + 10
+    weight += 10
     print('   Result: OK. The property provides the correct license information. Weight assigned 10')
   else:
     print('   Result: ERROR. The license is incorrect -',str(url))
-  return weight
+  response.license = weight
+  return response
 
 
-def contactpoint(weight):
-  weight = weight + 20
+def contactpoint(response):
+  response.contactPoint = 20
   print('   Result: OK. The property is set. Weight assigned 20')
-  return weight
+  return response
 
-def mediatype(urls, weight):
+def mediatype(urls, response):
   checked = True
-  weight = weight + 10
+  response.mediaType = 10
   print('   Result: OK. The property is set. Weight assigned 10')
   for url in urls:
     try:
@@ -150,18 +152,18 @@ def mediatype(urls, weight):
     result = True
   else:
     result = False
-  return {'result': result, 'weight': weight}
+  return {'result': result, 'response': response}
 
-def publisher(weight):
-  weight = weight + 10
+def publisher(response):
+  response.publisher = 10
   print('   Result: OK. The property is set. Weight assigned 10')
-  return weight
+  return response
 
-def accessrights(urls, weight):
+def accessrights(urls, response):
   uri = URIRef('')
   checked = True
   isURL = True
-  weight = weight + 10
+  weight = 10
   print('   Result: OK. The property is set. Weight assigned 10')
   for url in urls:
     g = Graph()
@@ -184,25 +186,26 @@ def accessrights(urls, weight):
       print('   Result: ERROR. The license is incorrect -', str(url))
   else:
     print('   Result: ERROR. The property does not use a valid URL. No additional weight assigned')
-  return weight
+  response.accessRights = weight
+  return response
 
-def issued(weight):
-  weight = weight + 5
+def issued(response):
+  response.issued = 5
   print('   Result: OK. The property is set. Weight assigned 5')
-  return weight
+  return response
 
-def modified(weight):
-  weight = weight + 5
+def modified(response):
+  response.modified = 5
   print('   Result: OK. The property is set. Weight assigned 5')
-  return weight
+  return response
 
-def rights(weight):
-  weight = weight + 5
+def rights(response):
+  response.rights = 5
   print('   Result: OK. The property is set. Weight assigned 5')
-  return weight
+  return response
 
-def byteSize(weight):
-  weight = weight + 5
+def byteSize(response):
+  response.byteSize = 5
   print('   Result: OK. The property is set. Weight assigned 5')
-  return weight
+  return response
 
