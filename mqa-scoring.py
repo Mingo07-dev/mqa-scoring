@@ -1,9 +1,12 @@
-#!/usr/bin/env python3
 '''
 YODA (Your Open DAta)
 EU CEF Action 2019-ES-IA-0121
 University of Cantabria
 Developer: Johnny Choque (jchoque@tlmat.unican.es)
+
+Fork:
+BEOPEN 2023
+Developer: Marco Sajeva (sajeva.marco01@gmail.com)
 '''
 import requests
 import json
@@ -49,7 +52,7 @@ def load_edp_vocabulary(file):
   return voc
 
 def edp_validator(file, weight):
-  print('* SHACL validation')
+  # print('* SHACL validation')
   try:
     rdfFile = open(file, "r")
   except Exception as e:
@@ -63,10 +66,10 @@ def edp_validator(file, weight):
       raise SystemExit(err)
     report = json.loads(r_edp.text)
     if valResult(report):
-      print('   Result: OK. The metadata has successfully passed the EDP validator. Weight assigned 30')
+      # print('   Result: OK. The metadata has successfully passed the EDP validator. Weight assigned 30')
       weight = weight + 30
-    else:
-      print('   Result: ERROR. DCAT-AP errors found in metadata')
+    # else:
+    #   print('   Result: ERROR. DCAT-AP errors found in metadata')
   return weight
 
 def valResult(d):
@@ -150,7 +153,7 @@ def main(file):
     weight = 0
     response.shacl_validation = 0
   
-  print('   Current weight =',weight)
+  # print('   Current weight =',weight)
 
   metrics = get_metrics(g)
   urls = get_urls(g)
@@ -162,7 +165,7 @@ def main(file):
   for pred in metrics.keys():
     met = str_metric(pred, g)
     objs = metrics[pred]
-    print('*',met)
+    # print('*',met)
     if met == "dcat:accessURL":
       res = mqa.accessURL(objs, response)
       response = res
@@ -239,22 +242,22 @@ def main(file):
       res = mqa.byteSize(response)
       response = res
       weight = weight + res.byteSize
-    else:
-      otherCases(pred, objs, g)
-    print('   Current weight =',weight)
+    # else:
+    #   otherCases(pred, objs, g)
+    # print('   Current weight =',weight)
 
-  print('* dct:format & dcat:mediaType')
+  # print('* dct:format & dcat:mediaType')
   if f_res['result'] and m_res['result']:
     response.dctFormat_dcatMediaType = 10
     weight = weight + 10
-    print('   Result: OK. The properties belong to a controlled vocabulary. Weight assigned 10')
-    print('   Current weight=',weight)
+    # print('   Result: OK. The properties belong to a controlled vocabulary. Weight assigned 10')
+    # print('   Current weight=',weight)
   else:
     response.dctFormat_dcatMediaType = 0
-    print('   Result: WARN. The properties do not belong to a controlled vocabulary')
+    # print('   Result: WARN. The properties do not belong to a controlled vocabulary')
 
-  print('\n')
-  print('Overall MQA scoring:', str(weight))
+  # print('\n')
+  # print('Overall MQA scoring:', str(weight))
   response.overall = weight
   return response
 
