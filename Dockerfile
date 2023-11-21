@@ -7,7 +7,8 @@ RUN apt-get update \
 && apt-get install -y \
 && apt-get -y install apt-utils gcc libpq-dev libsndfile-dev \
 && apt-get install python-tk -y \
-&& pip install aiofiles
+&& pip install aiofiles \
+&& pip install python-multipart
 RUN pip install Pillow
 
 WORKDIR /app

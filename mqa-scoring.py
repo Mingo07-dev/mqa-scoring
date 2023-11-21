@@ -20,7 +20,7 @@ import os
 import uvicorn
 from pydantic import BaseModel
 import logging 
-from typing import List
+from typing import Optional
 import xml.etree.ElementTree as ET
 
 URL_EDP = 'https://data.europa.eu/api/mqa/shacl/validation/report'
@@ -277,24 +277,28 @@ app.add_middleware(
 # Base model
 class Options(BaseModel):
     xml: str
-
+    
 
 @app.post("/mqa")
 async def useCaseConfigurator(options: Options):
-# async def useCaseConfigurator():
     try:
         configuration_inputs = options
     except Exception as e:
         raise HTTPException(status_code=400, detail="Inputs not valid")
     try:
-        if configuration_inputs.xml != None:
-          global xml
-          xml = configuration_inputs.xml
-
-        return main(xml)
-
+      xml = configuration_inputs.xml
+      return main(xml)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error" + str(e))
+    
+@app.post("/mqa/file")
+async def useCaseConfigurator(file: UploadFile = File(...)):
+  try:
+    xml = file.file.read()
+    file.file.close()
+    return main(xml)
+  except Exception:
+      return {"message": "There was an error uploading the file"}
 
 
 # if __name__ == "__main__":
