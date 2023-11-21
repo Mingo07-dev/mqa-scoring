@@ -299,5 +299,5 @@ async def useCaseConfigurator(options: Options):
 
 appPort = os.getenv("PORT", 8000)
 if __name__ == "__main__":
-    # uvicorn.run(app, host='0.0.0.0', port=appPort)
-    uvicorn.run(app, host='localhost', port=appPort)
+    uvicorn.run(app, host='0.0.0.0', port=appPort)
+    # uvicorn.run(app, host='localhost', port=appPort)
