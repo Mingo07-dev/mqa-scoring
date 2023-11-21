@@ -96,17 +96,44 @@ def get_urls(g):
     voc.append(str(sub))
   return voc
 
+#to avoid some properties on json response are missing
+def prepareResponse():
+  class Object(object):
+    pass
+  response = Object()
+  response.accessURL = 0
+  response.downloadURL = 0
+  response.downloadURLResponseCode = 0
+  response.keyword = 0
+  response.theme = 0
+  response.spatial = 0
+  response.temporal = 0
+  response.format = 0
+  response.formatMachineReadable = 0
+  response.formatNonProprietary = 0
+  response.license = 0
+  response.licenseVocabulary = 0
+  response.contactPoint = 0
+  response.mediaType = 0
+  response.publisher = 0
+  response.accessRights = 0
+  response.accessRightsVocabulary = 0
+  response.issued = 0
+  response.modified = 0
+  response.rights = 0
+  response.byteSize = 0
+  return response
+
 def main(file):
   mach_read_voc = []
   non_prop_voc = []
 
+  # to get file in input by command line
   # parser = argparse.ArgumentParser(description='Calculates the score obtained by a metadata according to the MQA methodology specified by data.europa.eu')
   # parser.add_argument('-f', '--file', type=str, required=True, help='RDF file to be validated')
   # args = parser.parse_args()
 
-  class Object(object):
-    pass
-  response = Object()
+  response = prepareResponse()
 
   g = Graph()
   g.parse(data = file)
@@ -144,6 +171,8 @@ def main(file):
       res = mqa.downloadURL(objs, response)
       response = res
       weight = weight + res.downloadURL
+      if hasattr(res, "downloadURLResponseCode"):
+        weight += res.downloadURLResponseCode
     elif met == "dcat:keyword":
       res = mqa.keyword(response)
       response = res
@@ -164,16 +193,17 @@ def main(file):
       f_res = mqa.format(objs, mach_read_voc, non_prop_voc, response)
       res = f_res['response']
       response = res
-      toAdd = res.format
+      weight = weight + res.format
       if hasattr(res, "formatMachineReadable"):
-        toAdd += res.formatMachineReadable
+        weight += res.formatMachineReadable
       if hasattr(res, "formatNonProprietary"):
-        toAdd += res.formatNonProprietary
-      weight = weight + toAdd
+        weight += res.formatNonProprietary
     if met == "dct:license":
       res = mqa.license(objs, response)
       response = res
       weight = weight + res.license
+      if hasattr(res, "licenseVocabulary"):
+        weight += res.licenseVocabulary
     elif met == "dcat:contactPoint":
       res = mqa.contactpoint(response)
       response = res
@@ -191,6 +221,8 @@ def main(file):
       res = mqa.accessrights(objs, response)
       response = res
       weight = weight + res.accessRights
+      if hasattr(res, "accessRightsVocabulary"):
+        weight += res.accessRightsVocabulary
     elif met == "dct:issued":
       res = mqa.issued(response)
       response = res
@@ -228,7 +260,6 @@ def main(file):
 
 
 app = FastAPI(title="BeOpen mqa-scoring")
-appPort = os.getenv("PORT", 8000)
 logger = logging.getLogger(__name__)
 
 app.add_middleware(
@@ -252,19 +283,10 @@ async def useCaseConfigurator(options: Options):
         configuration_inputs = options
     except Exception as e:
         raise HTTPException(status_code=400, detail="Inputs not valid")
-        # settare gli input
-        # eseguire getInput()
-        # eseguire close()
-        # restituire il file
     try:
-        logging.debug(
-            "Questo è un messaggio informativo, hai superato le prime eccezioni"
-        )
-
         if configuration_inputs.xml != None:
           global xml
           xml = configuration_inputs.xml
-
 
         return main(xml)
 
@@ -275,6 +297,7 @@ async def useCaseConfigurator(options: Options):
 # if __name__ == "__main__":
 #   main()
 
+appPort = os.getenv("PORT", 8000)
 if __name__ == "__main__":
     # uvicorn.run(app, host='0.0.0.0', port=appPort)
     uvicorn.run(app, host='localhost', port=appPort)

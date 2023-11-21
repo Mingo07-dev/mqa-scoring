@@ -27,7 +27,7 @@ def accessURL(urls, response):
   return response
 
 def downloadURL(urls, response):
-  weight = 20
+  response.downloadURL = 20
   checked = True
   print('   Result: OK. The property is set. Weight assigned 20')
   for url in urls:
@@ -40,11 +40,10 @@ def downloadURL(urls, response):
     except:
       checked = checked and False
   if checked:
-    weight += 30
+    response.downloadURLResponseCode = 30
     print('   Result: OK. Weight assigned 30')
   else:
     print('   Result: ERROR - Responded status code of HTTP HEAD request is not in the 200 or 300 range')
-  response.downloadURL = weight
   return response
 
 def keyword(response):
@@ -109,7 +108,7 @@ def format(urls, mach_read_voc, non_prop_voc, response):
 
 def license(urls, response):
   checked = True
-  weight = 20
+  response.license = 20
   print('   Result: OK. The property is set. Weight assigned 20')
   for url in urls:
     g = Graph()
@@ -122,11 +121,10 @@ def license(urls, response):
     except:
         checked = checked and False
   if checked:
-    weight += 10
+    response.licenseVocabulary = 10
     print('   Result: OK. The property provides the correct license information. Weight assigned 10')
   else:
     print('   Result: ERROR. The license is incorrect -',str(url))
-  response.license = weight
   return response
 
 
@@ -163,7 +161,7 @@ def accessrights(urls, response):
   uri = URIRef('')
   checked = True
   isURL = True
-  weight = 10
+  response.accessRights = 10
   print('   Result: OK. The property is set. Weight assigned 10')
   for url in urls:
     g = Graph()
@@ -180,13 +178,12 @@ def accessrights(urls, response):
       checked = checked and False
   if isURL:
     if checked:
-      weight = weight + 5
+      response.accessRightsVocabulary = 5
       print('   Result: OK. The property uses a controlled vocabulary. Weight assigned 5')
     else:
       print('   Result: ERROR. The license is incorrect -', str(url))
   else:
     print('   Result: ERROR. The property does not use a valid URL. No additional weight assigned')
-  response.accessRights = weight
   return response
 
 def issued(response):
