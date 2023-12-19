@@ -141,7 +141,7 @@ def distribution_calc(str):
         accessURL_List.append(res.status_code)
       except:
         print(traceback.format_exc())
-        accessURL_List.append(1100)
+        accessURL_List.append(400)
 
     elif met == "dcat:downloadURL":
       response.downloadURL = True
@@ -150,7 +150,7 @@ def distribution_calc(str):
         downloadURLResponseCode_List.append(res.status_code)
       except:
         print(traceback.format_exc())
-        downloadURLResponseCode_List.append(1100)
+        downloadURLResponseCode_List.append(400)
 
     elif (met == "dct:format" and obj != '' and obj != None) or met == "dct:MediaTypeOrExtent":
       response.format = True
