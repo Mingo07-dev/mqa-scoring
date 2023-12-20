@@ -16,7 +16,7 @@ import traceback
 import requests
 import json
 from rdflib import Graph
-from fastapi import FastAPI, File, UploadFile, Depends, HTTPException
+from fastapi import BackgroundTasks, FastAPI, File, UploadFile, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import os
@@ -92,6 +92,8 @@ def prepareResponse():
   class Object(object):
     pass
   response = Object()
+  
+  response.title = ''
   response.accessURL = 400
   response.downloadURL = False
   response.downloadURLResponseCode = 400
@@ -135,7 +137,10 @@ def distribution_calc(str):
 
   for sub, pred, obj in g:
     met = str_metric(pred, g)
-    if met == "dcat:accessURL":
+    if met == "dct:title" and response.title == '':
+      response.title = obj
+
+    elif met == "dcat:accessURL":
       try:
         res = requests.get(obj)
         accessURL_List.append(res.status_code)
@@ -273,6 +278,7 @@ def dataset_calc(dataset_str, pre):
     g = Graph()
     g.parse(data = dt_copy)
 
+    response.title = ''
     response.issued = 0
     response.modified = False
     response.keyword = False
@@ -316,8 +322,10 @@ def dataset_calc(dataset_str, pre):
 
     for sub, pred, obj in g:
       met = str_metric(pred, g)
+      if met == "dct:title" and response.title == '':
+        response.title = obj
 
-      if met == "dct:issued":
+      elif met == "dct:issued":
         response.issued += 1
         response.issuedDataset = True
 
@@ -416,6 +424,203 @@ def find_nth(haystack: str, needle: str, n: int) -> int:
         n -= 1
     return start
 
+def main(xml, pre, dataset_start, dataset_finish, url):
+  class Object(object):
+    pass
+  response = Object()
+  response.datasets = []
+  response.title = ''
+
+  dt_copy = xml
+  
+  for index, item in enumerate(dataset_start):
+    dataset = pre + xml[dataset_start[index]:dataset_finish[index]+15] + '</rdf:RDF>'
+    result = dataset_calc(dataset, pre)
+    response.datasets.append(result)
+    dataset_Tag = xml[dataset_start[index]:dataset_finish[index]+15]
+    dt_copy = dt_copy.replace(dataset_Tag, '')
+  
+
+  g = Graph()
+  g.parse(data = dt_copy)
+
+  for sub, pred, obj in g:
+    met = str_metric(pred, g)
+    if met == "dct:title":
+      response.title = obj
+      break
+
+  
+  if xml.rfind('<dcat:Catalog ') != -1:
+    
+    response.issued = 0
+    response.modified = 0
+    response.keyword = 0
+    response.theme = 0
+    response.spatial = 0
+    response.temporal = 0
+    response.contactPoint = 0
+    response.publisher = 0
+    response.accessRights = 0
+    response.accessRightsVocabulary = 0
+    response.accessURL = []
+    response.accessURL_Perc = 0
+    response.downloadURL = 0
+    response.downloadURLResponseCode = []
+    response.downloadURLResponseCode_Perc = 0
+    response.format = 0
+    response.dctFormat_dcatMediaType = 0
+    response.formatMachineReadable = 0
+    response.formatNonProprietary = 0
+    response.license = 0
+    response.licenseVocabulary = 0
+    response.mediaType = 0
+    response.rights = 0
+    response.byteSize = 0
+    response.shacl_validation = 0
+
+    countDataset = 0
+    countDistr = 0
+    tempArrayDownloadUrl = []
+    tempArrayAccessUrl = []
+    for dataset in response.datasets:
+      countDataset += 1
+      if dataset.issuedDataset == True:
+        response.issued += 1
+      del dataset.issuedDataset
+      if dataset.modifiedDataset == True:
+        response.modified += 1
+      del dataset.modifiedDataset
+      if dataset.accessRights == True:
+        response.accessRights += 1
+      if dataset.accessRightsVocabulary == True:
+        response.accessRightsVocabulary += 1
+      if dataset.contactPoint == True:
+        response.contactPoint += 1
+      if dataset.publisher == True:
+        response.publisher += 1
+      if dataset.keyword == True:
+        response.keyword += 1
+      if dataset.theme == True:
+        response.theme += 1
+      if dataset.spatial == True:
+        response.spatial += 1
+      if dataset.temporal == True:
+        response.temporal += 1
+      if dataset.shacl_validation == True:
+        response.shacl_validation += 1
+      for distr in dataset.distributions:
+        countDistr += 1
+        if distr.issued == True:
+          response.issued += 1
+        if distr.modified == True:
+          response.modified += 1
+        if distr.byteSize == True:
+          response.byteSize += 1
+        if distr.rights == True:
+          response.rights += 1
+        if distr.license == True:
+          response.license += 1
+        if distr.licenseVocabulary == True:
+          response.licenseVocabulary += 1
+        if distr.downloadURL == True:
+          response.downloadURL += 1
+        tempArrayDownloadUrl.append(distr.downloadURLResponseCode)
+        tempArrayAccessUrl.append(distr.accessURL)
+        if distr.format == True:
+          response.format += 1
+        if distr.formatMachineReadable == True:
+          response.formatMachineReadable += 1
+        if distr.formatNonProprietary == True:
+          response.formatNonProprietary += 1
+        if distr.mediaType == True:
+          response.mediaType += 1
+        if distr.dctFormat_dcatMediaType == True:
+          response.dctFormat_dcatMediaType += 1
+
+    # distribution level percentages
+    response.issued = round(response.issued / (countDataset + countDistr) * 100)
+    response.modified = round(response.modified / (countDataset + countDistr) * 100)
+    response.byteSize = round(response.byteSize / countDistr * 100)
+    response.rights = round(response.rights / countDistr * 100)
+    response.licenseVocabulary = round(response.licenseVocabulary / response.license * 100)
+    response.license = round(response.license / countDistr * 100)
+    response.downloadURL = round(response.downloadURL / countDistr * 100)
+    list_unique = (list(set(tempArrayDownloadUrl)))
+    for el in list_unique:
+      if el in range(200, 399):
+        response.downloadURLResponseCode_Perc += round(tempArrayDownloadUrl.count(el) / countDistr * 100)
+      response.downloadURLResponseCode.append({"code": el, "percentage": round(tempArrayDownloadUrl.count(el) / countDistr * 100)})
+    list_unique = (list(set(tempArrayAccessUrl)))
+    for el in list_unique:
+      if el in range(200, 399):
+        response.accessURL_Perc += round(tempArrayAccessUrl.count(el) / countDistr * 100)
+      response.accessURL.append({"code": el, "percentage": round(tempArrayAccessUrl.count(el) / countDistr * 100)})
+    # response.downloadURLResponseCode = round(most_frequent(tempArrayDownloadUrl))
+    # response.downloadURLResponseCode_Perc = round(tempArrayDownloadUrl.count(response.downloadURLResponseCode) / countDistr * 100)
+    # response.accessURL = round(most_frequent(tempArrayAccessUrl))
+    # response.accessURL_Perc = round(tempArrayAccessUrl.count(response.accessURL) / countDistr * 100)
+    response.format = round(response.format / countDistr * 100)
+    response.formatMachineReadable = round(response.formatMachineReadable / countDistr * 100)
+    response.formatNonProprietary = round(response.formatNonProprietary / countDistr * 100)
+    response.mediaType = round(response.mediaType / countDistr * 100)
+    response.dctFormat_dcatMediaType = round(response.dctFormat_dcatMediaType / (countDistr*2) * 100)
+
+    # dataset level percentages
+    response.accessRightsVocabulary = round(response.accessRightsVocabulary / response.accessRights * 100)
+    response.accessRights = round(response.accessRights / countDataset * 100)
+    response.contactPoint = round(response.contactPoint / countDataset * 100)
+    response.publisher = round(response.publisher / countDataset * 100)
+    response.keyword = round(response.keyword / countDataset * 100)
+    response.theme = round(response.theme / countDataset * 100)
+    response.spatial = round(response.spatial / countDataset * 100)
+    response.temporal = round(response.temporal / countDataset * 100)
+    response.shacl_validation = round(response.shacl_validation / countDataset * 100)
+
+    # weights
+    response.keyword_Weight = math.ceil(30 / 100 * response.keyword)
+    response.theme_Weight = math.ceil(30 / 100 * response.theme)
+    response.spatial_Weight = math.ceil(20 / 100 * response.spatial)
+    response.temporal_Weight = math.ceil(20 / 100 * response.temporal)
+    response.contactPoint_Weight = math.ceil(20 / 100 * response.contactPoint)
+    response.publisher_Weight = math.ceil(10 / 100 * response.publisher)
+    response.accessRights_Weight = math.ceil(10 / 100 * response.accessRights)
+    response.accessRightsVocabulary_Weight = math.ceil(5 / 100 * response.accessRightsVocabulary)
+    response.accessURL_Weight = math.ceil(50 / 100 * response.accessURL_Perc)
+    response.downloadURL_Weight = math.ceil(20 / 100 * response.downloadURL)
+    response.downloadURLResponseCode_Weight = math.ceil(30 / 100 * response.downloadURLResponseCode_Perc)
+    response.format_Weight = math.ceil(20 / 100 * response.format)
+    response.dctFormat_dcatMediaType_Weight = math.ceil(10 / 100 * response.dctFormat_dcatMediaType)
+    response.formatMachineReadable_Weight = math.ceil(20 / 100 * response.formatMachineReadable)
+    response.formatNonProprietary_Weight = math.ceil(20 / 100 * response.formatNonProprietary)
+    response.license_Weight = math.ceil(20 / 100 * response.license)
+    response.licenseVocabulary_Weight = math.ceil(10 / 100 * response.licenseVocabulary)
+    response.mediaType_Weight = math.ceil(10 / 100 * response.mediaType)
+    response.rights_Weight = math.ceil(5 / 100 * response.rights)
+    response.byteSize_Weight = math.ceil(5 / 100 * response.byteSize)
+    response.issued_Weight = math.ceil(5 / 100 * response.issued)
+    response.modified_Weight = math.ceil(5 / 100 * response.modified)
+    response.shacl_validation_Weight = math.ceil(30 / 100 * response.shacl_validation)
+
+    response.findability = response.keyword_Weight + response.theme_Weight + response.spatial_Weight + response.temporal_Weight
+    response.accessibility = response.accessURL_Weight + response.downloadURL_Weight + response.downloadURLResponseCode_Weight
+    response.interoperability = response.format_Weight + response.dctFormat_dcatMediaType_Weight + response.formatMachineReadable_Weight + response.formatNonProprietary_Weight + response.mediaType_Weight + response.shacl_validation_Weight
+    response.reusability = response.license_Weight + response.licenseVocabulary_Weight + response.contactPoint_Weight + response.publisher_Weight + response.accessRights_Weight + response.accessRightsVocabulary_Weight 
+    response.contextuality = response.rights_Weight + response.byteSize_Weight + response.issued_Weight + response.modified_Weight
+
+    response.overall = response.findability + response.accessibility + response.interoperability + response.reusability + response.contextuality
+
+  if url != None:
+    print("Sending request to", url)
+    class EmployeeEncoder(json.JSONEncoder): 
+          def default(self, o):
+              return o.__dict__
+    
+    res = requests.post(url, json.dumps(response, indent=4, cls=EmployeeEncoder))
+    
+    print("Status Code", res.status_code)
+  return res
+
 
 app = FastAPI(title="BeOpen mqa-scoring")
 logger = logging.getLogger(__name__)
@@ -431,9 +636,10 @@ app.add_middleware(
 # Base model
 class Options(BaseModel):
     xml: str
+    url: Optional[str] = None
 
 @app.post("/mqa")
-async def useCaseConfigurator(options: Options):
+async def useCaseConfigurator(options: Options, background_tasks: BackgroundTasks):
     try:
         configuration_inputs = options
     except Exception as e:
@@ -441,189 +647,34 @@ async def useCaseConfigurator(options: Options):
         raise HTTPException(status_code=400, detail="Inputs not valid")
     try:
       xml = configuration_inputs.xml
-      class Object(object):
-        pass
-      response = Object()
-      response.datasets = []
+
+      dataset_start = [m.start() for m in re.finditer('(?=<dcat:Dataset)', xml)]
+      dataset_finish = [m.start() for m in re.finditer('(?=</dcat:Dataset>)', xml)]
+      if len(dataset_start) != len(dataset_finish):
+        return HTTPException(status_code=400, detail="Could not sort datasets")
+      
+      distribution_start = [m.start() for m in re.finditer('(?=<dcat:distribution>)', xml)]
+      distribution_finish = [m.start() for m in re.finditer('(?=</dcat:distribution>)', xml)]
+      if len(distribution_start) != len(distribution_finish):
+        return HTTPException(status_code=400, detail="Could not sort distributions")
       
       closing_index = 2
       if xml.rfind('<?xml', None, 10) == -1:
         closing_index = 1
 
       pre = xml[:find_nth(xml,'>',closing_index) ] + '>'
-      dataset_start = [m.start() for m in re.finditer('(?=<dcat:Dataset)', xml)]
-      dataset_finish = [m.start() for m in re.finditer('(?=</dcat:Dataset>)', xml)]
-      if len(dataset_start) == len(dataset_finish):
-        for index, item in enumerate(dataset_start):
-          dataset = pre + xml[dataset_start[index]:dataset_finish[index]+15] + '</rdf:RDF>'
-          result = dataset_calc(dataset, pre)
-          if result == -1:
-            raise HTTPException(status_code=400, detail="Could not sort distributions")
-          else:
-            response.datasets.append(result)
-      else:
-        raise HTTPException(status_code=400, detail="Could not sort datasets")
+
+      test_string = pre + xml[dataset_start[0]:dataset_finish[0]+15] + '</rdf:RDF>'
+      try:
+        g = Graph()
+        g.parse(data = test_string)
+      except:
+        print(traceback.format_exc())
+        return HTTPException(status_code=400, detail="Could not parse xml")
       
-      if xml.rfind('<dcat:Catalog ') != -1:
-        
-        response.issued = 0
-        response.modified = 0
-        response.keyword = 0
-        response.theme = 0
-        response.spatial = 0
-        response.temporal = 0
-        response.contactPoint = 0
-        response.publisher = 0
-        response.accessRights = 0
-        response.accessRightsVocabulary = 0
-        response.accessURL = []
-        response.accessURL_Perc = 0
-        response.downloadURL = 0
-        response.downloadURLResponseCode = []
-        response.downloadURLResponseCode_Perc = 0
-        response.format = 0
-        response.dctFormat_dcatMediaType = 0
-        response.formatMachineReadable = 0
-        response.formatNonProprietary = 0
-        response.license = 0
-        response.licenseVocabulary = 0
-        response.mediaType = 0
-        response.rights = 0
-        response.byteSize = 0
-        response.shacl_validation = 0
+      background_tasks.add_task(main, xml, pre, dataset_start, dataset_finish, configuration_inputs.url)
 
-        countDataset = 0
-        countDistr = 0
-        tempArrayDownloadUrl = []
-        tempArrayAccessUrl = []
-        for dataset in response.datasets:
-          countDataset += 1
-          if dataset.issuedDataset == True:
-            response.issued += 1
-          del dataset.issuedDataset
-          if dataset.modifiedDataset == True:
-            response.modified += 1
-          del dataset.modifiedDataset
-          if dataset.accessRights == True:
-            response.accessRights += 1
-          if dataset.accessRightsVocabulary == True:
-            response.accessRightsVocabulary += 1
-          if dataset.contactPoint == True:
-            response.contactPoint += 1
-          if dataset.publisher == True:
-            response.publisher += 1
-          if dataset.keyword == True:
-            response.keyword += 1
-          if dataset.theme == True:
-            response.theme += 1
-          if dataset.spatial == True:
-            response.spatial += 1
-          if dataset.temporal == True:
-            response.temporal += 1
-          if dataset.shacl_validation == True:
-            response.shacl_validation += 1
-          for distr in dataset.distributions:
-            countDistr += 1
-            if distr.issued == True:
-              response.issued += 1
-            if distr.modified == True:
-              response.modified += 1
-            if distr.byteSize == True:
-              response.byteSize += 1
-            if distr.rights == True:
-              response.rights += 1
-            if distr.license == True:
-              response.license += 1
-            if distr.licenseVocabulary == True:
-              response.licenseVocabulary += 1
-            if distr.downloadURL == True:
-              response.downloadURL += 1
-            tempArrayDownloadUrl.append(distr.downloadURLResponseCode)
-            tempArrayAccessUrl.append(distr.accessURL)
-            if distr.format == True:
-              response.format += 1
-            if distr.formatMachineReadable == True:
-              response.formatMachineReadable += 1
-            if distr.formatNonProprietary == True:
-              response.formatNonProprietary += 1
-            if distr.mediaType == True:
-              response.mediaType += 1
-            if distr.dctFormat_dcatMediaType == True:
-              response.dctFormat_dcatMediaType += 1
-
-        # distribution level percentages
-        response.issued = round(response.issued / (countDataset + countDistr) * 100)
-        response.modified = round(response.modified / (countDataset + countDistr) * 100)
-        response.byteSize = round(response.byteSize / countDistr * 100)
-        response.rights = round(response.rights / countDistr * 100)
-        response.licenseVocabulary = round(response.licenseVocabulary / response.license * 100)
-        response.license = round(response.license / countDistr * 100)
-        response.downloadURL = round(response.downloadURL / countDistr * 100)
-        list_unique = (list(set(tempArrayDownloadUrl)))
-        for el in list_unique:
-          if el in range(200, 399):
-            response.downloadURLResponseCode_Perc += round(tempArrayDownloadUrl.count(el) / countDistr * 100)
-          response.downloadURLResponseCode.append({"code": el, "percentage": round(tempArrayDownloadUrl.count(el) / countDistr * 100)})
-        list_unique = (list(set(tempArrayAccessUrl)))
-        for el in list_unique:
-          if el in range(200, 399):
-            response.accessURL_Perc += round(tempArrayAccessUrl.count(el) / countDistr * 100)
-          response.accessURL.append({"code": el, "percentage": round(tempArrayAccessUrl.count(el) / countDistr * 100)})
-        # response.downloadURLResponseCode = round(most_frequent(tempArrayDownloadUrl))
-        # response.downloadURLResponseCode_Perc = round(tempArrayDownloadUrl.count(response.downloadURLResponseCode) / countDistr * 100)
-        # response.accessURL = round(most_frequent(tempArrayAccessUrl))
-        # response.accessURL_Perc = round(tempArrayAccessUrl.count(response.accessURL) / countDistr * 100)
-        response.format = round(response.format / countDistr * 100)
-        response.formatMachineReadable = round(response.formatMachineReadable / countDistr * 100)
-        response.formatNonProprietary = round(response.formatNonProprietary / countDistr * 100)
-        response.mediaType = round(response.mediaType / countDistr * 100)
-        response.dctFormat_dcatMediaType = round(response.dctFormat_dcatMediaType / (countDistr*2) * 100)
-
-        # dataset level percentages
-        response.accessRightsVocabulary = round(response.accessRightsVocabulary / response.accessRights * 100)
-        response.accessRights = round(response.accessRights / countDataset * 100)
-        response.contactPoint = round(response.contactPoint / countDataset * 100)
-        response.publisher = round(response.publisher / countDataset * 100)
-        response.keyword = round(response.keyword / countDataset * 100)
-        response.theme = round(response.theme / countDataset * 100)
-        response.spatial = round(response.spatial / countDataset * 100)
-        response.temporal = round(response.temporal / countDataset * 100)
-        response.shacl_validation = round(response.shacl_validation / countDataset * 100)
-
-        # weights
-        response.keyword_Weight = math.ceil(30 / 100 * response.keyword)
-        response.theme_Weight = math.ceil(30 / 100 * response.theme)
-        response.spatial_Weight = math.ceil(20 / 100 * response.spatial)
-        response.temporal_Weight = math.ceil(20 / 100 * response.temporal)
-        response.contactPoint_Weight = math.ceil(20 / 100 * response.contactPoint)
-        response.publisher_Weight = math.ceil(10 / 100 * response.publisher)
-        response.accessRights_Weight = math.ceil(10 / 100 * response.accessRights)
-        response.accessRightsVocabulary_Weight = math.ceil(5 / 100 * response.accessRightsVocabulary)
-        response.accessURL_Weight = math.ceil(50 / 100 * response.accessURL_Perc)
-        response.downloadURL_Weight = math.ceil(20 / 100 * response.downloadURL)
-        response.downloadURLResponseCode_Weight = math.ceil(30 / 100 * response.downloadURLResponseCode_Perc)
-        response.format_Weight = math.ceil(20 / 100 * response.format)
-        response.dctFormat_dcatMediaType_Weight = math.ceil(10 / 100 * response.dctFormat_dcatMediaType)
-        response.formatMachineReadable_Weight = math.ceil(20 / 100 * response.formatMachineReadable)
-        response.formatNonProprietary_Weight = math.ceil(20 / 100 * response.formatNonProprietary)
-        response.license_Weight = math.ceil(20 / 100 * response.license)
-        response.licenseVocabulary_Weight = math.ceil(10 / 100 * response.licenseVocabulary)
-        response.mediaType_Weight = math.ceil(10 / 100 * response.mediaType)
-        response.rights_Weight = math.ceil(5 / 100 * response.rights)
-        response.byteSize_Weight = math.ceil(5 / 100 * response.byteSize)
-        response.issued_Weight = math.ceil(5 / 100 * response.issued)
-        response.modified_Weight = math.ceil(5 / 100 * response.modified)
-        response.shacl_validation_Weight = math.ceil(30 / 100 * response.shacl_validation)
-
-        response.findability = response.keyword_Weight + response.theme_Weight + response.spatial_Weight + response.temporal_Weight
-        response.accessibility = response.accessURL_Weight + response.downloadURL_Weight + response.downloadURLResponseCode_Weight
-        response.interoperability = response.format_Weight + response.dctFormat_dcatMediaType_Weight + response.formatMachineReadable_Weight + response.formatNonProprietary_Weight + response.mediaType_Weight + response.shacl_validation_Weight
-        response.reusability = response.license_Weight + response.licenseVocabulary_Weight + response.contactPoint_Weight + response.publisher_Weight + response.accessRights_Weight + response.accessRightsVocabulary_Weight 
-        response.contextuality = response.rights_Weight + response.byteSize_Weight + response.issued_Weight + response.modified_Weight
-
-        response.overall = response.findability + response.accessibility + response.interoperability + response.reusability + response.contextuality
-
-      return response
+      return {"message": "The request has been accepted"}
     except Exception as e:
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Internal Server Error" + str(e))

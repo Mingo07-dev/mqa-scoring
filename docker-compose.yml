@@ -1,8 +1,8 @@
-version: '3'
+version: '4'
 
 services:
 
-  ucc-eu:
+  mqa-score:
     image: beopen/mqa-scoring:v1.0.0
     container_name: mqa-score
     build:
@@ -13,3 +13,16 @@ services:
       - '127.0.0.1:8000:8000'
     environment:
       - PORT=8000
+
+  db:
+    container_name: mongo
+    image: mongo:4.4
+    command: --nojournal
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_DATABASE=admin
+      - MONGO_INITDB_ROOT_PASSWORD=BeOpen2023!
+    ports:
+      - '27017:27017'
+    volumes: 
+      - ./data:/data/db
