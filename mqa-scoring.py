@@ -680,11 +680,42 @@ async def useCaseConfigurator(options: Options, background_tasks: BackgroundTask
         raise HTTPException(status_code=500, detail="Internal Server Error" + str(e))
     
 @app.post("/mqa/file")
-async def useCaseConfigurator(file: UploadFile = File(...)):
+async def useCaseConfigurator(background_tasks: BackgroundTasks, file: UploadFile = File(...), url: Optional[str] = None):
   try:
     xml = file.file.read()
     file.file.close()
-    return dataset_calc(xml)
+    
+    try:
+      dataset_start = [m.start() for m in re.finditer('(?=<dcat:Dataset)', xml)]
+      dataset_finish = [m.start() for m in re.finditer('(?=</dcat:Dataset>)', xml)]
+      if len(dataset_start) != len(dataset_finish):
+        return HTTPException(status_code=400, detail="Could not sort datasets")
+      
+      distribution_start = [m.start() for m in re.finditer('(?=<dcat:distribution>)', xml)]
+      distribution_finish = [m.start() for m in re.finditer('(?=</dcat:distribution>)', xml)]
+      if len(distribution_start) != len(distribution_finish):
+        return HTTPException(status_code=400, detail="Could not sort distributions")
+      
+      closing_index = 2
+      if xml.rfind('<?xml', None, 10) == -1:
+        closing_index = 1
+
+      pre = xml[:find_nth(xml,'>',closing_index) ] + '>'
+
+      test_string = pre + xml[dataset_start[0]:dataset_finish[0]+15] + '</rdf:RDF>'
+      try:
+        g = Graph()
+        g.parse(data = test_string)
+      except:
+        print(traceback.format_exc())
+        return HTTPException(status_code=400, detail="Could not parse xml")
+      
+      background_tasks.add_task(main, xml, pre, dataset_start, dataset_finish, url)
+
+      return {"message": "The request has been accepted"}
+    except Exception as e:
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Internal Server Error" + str(e))
   except Exception:
       print(traceback.format_exc())
       return {"message": "There was an error uploading the file"}
