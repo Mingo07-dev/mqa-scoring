@@ -18,12 +18,15 @@ import json
 from rdflib import Graph
 from fastapi import BackgroundTasks, FastAPI, File, UploadFile, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 import os
 import uvicorn
 from pydantic import BaseModel
 import logging 
 from typing import Optional
+from pymongo_get_database import *
+from bson.json_util import dumps
+from datetime import datetime
+from bson.objectid import ObjectId
 
 URL_EDP = 'https://data.europa.eu/api/mqa/shacl/validation/report'
 HEADERS = {'content-type': 'application/rdf+xml'}
@@ -424,7 +427,7 @@ def find_nth(haystack: str, needle: str, n: int) -> int:
         n -= 1
     return start
 
-def main(xml, pre, dataset_start, dataset_finish, url):
+def main(xml, pre, dataset_start, dataset_finish, url, collection_name, id):
   class Object(object):
     pass
   response = Object()
@@ -610,16 +613,24 @@ def main(xml, pre, dataset_start, dataset_finish, url):
 
     response.overall = response.findability + response.accessibility + response.interoperability + response.reusability + response.contextuality
 
+
+  class EmployeeEncoder(json.JSONEncoder): 
+        def default(self, o):
+            return o.__dict__
+        
+  if id != None:
+    now = datetime.now()
+    collection_name.update_one({'_id': ObjectId(id)},  {'$push': {"history": { "created_at": now.strftime("%d/%m/%Y %H:%M:%S"),"catalogue":json.loads(json.dumps(response, indent=4, cls=EmployeeEncoder)) } }}) 
+  
   if url != None:
     print("Sending request to", url)
-    class EmployeeEncoder(json.JSONEncoder): 
-          def default(self, o):
-              return o.__dict__
     
     res = requests.post(url, json.dumps(response, indent=4, cls=EmployeeEncoder))
     
     print("Status Code", res.status_code)
-  return res
+    return res
+  else:
+    return response
 
 
 app = FastAPI(title="BeOpen mqa-scoring")
@@ -637,6 +648,7 @@ app.add_middleware(
 class Options(BaseModel):
     xml: str
     url: Optional[str] = None
+    id: Optional[str] = None
 
 @app.post("/mqa")
 async def useCaseConfigurator(options: Options, background_tasks: BackgroundTasks):
@@ -672,17 +684,54 @@ async def useCaseConfigurator(options: Options, background_tasks: BackgroundTask
         print(traceback.format_exc())
         return HTTPException(status_code=400, detail="Could not parse xml")
       
-      background_tasks.add_task(main, xml, pre, dataset_start, dataset_finish, configuration_inputs.url)
 
-      return {"message": "The request has been accepted"}
+      # Get the database
+      try:
+        dbname = get_database()
+        collection_name = dbname["mqa"]
+        now = datetime.now()
+        print(configuration_inputs.id)
+        if configuration_inputs.id == None:
+          if xml.rfind('<dcat:Catalog ') != -1:
+            type = "catalogue"
+          else: 
+            type = "dataset"
+          new_item = {
+            "creation_date" : now.strftime("%d/%m/%Y %H:%M:%S"),
+            "last_modified" : now.strftime("%d/%m/%Y %H:%M:%S"),
+            "type": type,
+            "history": []
+          }
+          inserted_item = collection_name.insert_one(new_item)
+          id = str(inserted_item.inserted_id)
+        else:
+          id = configuration_inputs.id
+          type = collection_name.find_one({'_id': ObjectId(id)})["type"]
+          if xml.rfind('<dcat:Catalog ') != -1 and type == "dataset":
+            return HTTPException(status_code=400, detail="The file is a catalogue, but the id is from a dataset")
+          elif xml.rfind('<dcat:Catalog ') == -1 and type == "catalogue":
+            return HTTPException(status_code=400, detail="The file is a dataset, but the id is from a catalogue")
+          collection_name.update_one({'_id': ObjectId(id)},  {'$set': {"last_modified": now.strftime("%d/%m/%Y %H:%M:%S")}})
+      except:
+        print(traceback.format_exc())
+        id = None
+        collection_name = None
+
+
+      background_tasks.add_task(main, xml, pre, dataset_start, dataset_finish, configuration_inputs.url, collection_name, id)
+      if id == None:
+        return {"message": "The request has been accepted"}
+      else:
+        return {"message": "The request has been accepted", "id" : id}
     except Exception as e:
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Internal Server Error" + str(e))
     
 @app.post("/mqa/file")
-async def useCaseConfigurator(background_tasks: BackgroundTasks, file: UploadFile = File(...), url: Optional[str] = None):
+async def useCaseConfigurator(background_tasks: BackgroundTasks, file: UploadFile = File(...), url: Optional[str] = None, id: Optional[str] = None):
   try:
     xml = file.file.read()
+    xml = xml.decode("utf-8")
     file.file.close()
     
     try:
@@ -710,15 +759,67 @@ async def useCaseConfigurator(background_tasks: BackgroundTasks, file: UploadFil
         print(traceback.format_exc())
         return HTTPException(status_code=400, detail="Could not parse xml")
       
-      background_tasks.add_task(main, xml, pre, dataset_start, dataset_finish, url)
+      # Get the database
+      try:
+        dbname = get_database()
+        collection_name = dbname["mqa"]
+        now = datetime.now()
+        print(id)
+        if id == None:
+          if xml.rfind('<dcat:Catalog ') != -1:
+            type = "catalogue"
+          else: 
+            type = "dataset"
+          new_item = {
+            "creation_date" : now.strftime("%d/%m/%Y %H:%M:%S"),
+            "last_modified" : now.strftime("%d/%m/%Y %H:%M:%S"),
+            "type": type,
+            "history": []
+          }
+          inserted_item = collection_name.insert_one(new_item)
+          id = str(inserted_item.inserted_id)
+        else:
+          id = id
+          type = collection_name.find_one({'_id': ObjectId(id)})["type"]
+          if xml.rfind('<dcat:Catalog ') != -1 and type == "dataset":
+            return HTTPException(status_code=400, detail="The file is a catalogue, but the id is from a dataset")
+          elif xml.rfind('<dcat:Catalog ') == -1 and type == "catalogue":
+            return HTTPException(status_code=400, detail="The file is a dataset, but the id is from a catalogue")
+          collection_name.update_one({'_id': ObjectId(id)},  {'$set': {"last_modified": now.strftime("%d/%m/%Y %H:%M:%S")}})
+      except:
+        print(traceback.format_exc())
+        id = None
+        collection_name = None
 
-      return {"message": "The request has been accepted"}
+
+      background_tasks.add_task(main, xml, pre, dataset_start, dataset_finish, url, collection_name, id)
+      if id == None:
+        return {"message": "The request has been accepted"}
+      else:
+        return {"message": "The request has been accepted", "id" : id}
     except Exception as e:
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Internal Server Error" + str(e))
   except Exception:
       print(traceback.format_exc())
       return {"message": "There was an error uploading the file"}
+  
+@app.get("/mqa/get/catalogue/{id}")
+def get_results(id: str):
+  if(len(id) != 24):
+    return HTTPException(status_code=400, detail="Id not valid")
+  try:
+    dbname = get_database()
+    collection_name = dbname["mqa"]
+    result = collection_name.find_one({'_id': ObjectId(id)})
+    if result == None:
+      return HTTPException(status_code=404, detail="Not Found")
+    else:
+      res = json.loads(dumps(result, indent = 4)).get("history")
+      return res[len(res)-1]
+  except Exception as e:
+    print(traceback.format_exc())
+    raise HTTPException(status_code=500, detail="Internal Server Error" + str(e))
 
 # if __name__ == "__main__":
 #   main()

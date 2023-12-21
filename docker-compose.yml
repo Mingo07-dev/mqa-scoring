@@ -3,7 +3,7 @@ version: '4'
 services:
 
   mqa-score:
-    image: beopen/mqa-scoring:v1.0.0
+    image: mqa-scoring:v1.0.0
     container_name: mqa-score
     build:
       context: .
@@ -15,7 +15,7 @@ services:
       - PORT=8000
 
   db:
-    container_name: mongo
+    container_name: mongodb
     image: mongo:4.4
     command: --nojournal
     environment:
@@ -23,6 +23,6 @@ services:
       - MONGO_INITDB_DATABASE=admin
       - MONGO_INITDB_ROOT_PASSWORD=BeOpen2023!
     ports:
-      - '27017:27017'
+      - '127.0.0.1:27017:27017'
     volumes: 
       - ./data:/data/db
